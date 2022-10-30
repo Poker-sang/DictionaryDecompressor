@@ -2,9 +2,19 @@
 using SharpCompress.Common;
 using UnRar.Models.Enums;
 
+namespace DictionaryDecompressor;
+
 public static class Program
 {
-    private static readonly List<string> _pwdDict = new() { "buoluoyyds", "Geass", "hmoe.top", "izaya", "paradox", "123", "alterego", "yomega", "⑨" };
+    private static readonly List<string> _pwdDict = new() { "boluoyyds", "Geass", "hmoe.top", "izaya", "paradox", "alterego", "yomega", "⑨" };
+
+    private class PasswordUsedUpException : Exception
+    {
+        public PasswordUsedUpException(string message) : base(message)
+        {
+
+        }
+    }
 
     private static int _i;
     private static string NextPassword
@@ -17,13 +27,16 @@ public static class Program
                 return _pwdDict[_i - 1];
             }
 
-            throw new("No correct password.");
+            throw new PasswordUsedUpException("No correct password.");
         }
     }
+
+
     public static void Main(string[] args)
     {
         while (true)
         {
+            var info = new CompressInfo();
             _i = 0;
             var p = Console.ReadLine()!.Trim('"');
             if (p is "")
@@ -31,9 +44,36 @@ public static class Program
             var filePath = new FileInfo(p);
             if (!filePath.Exists)
                 return;
-            var archive = ArchiveFactory.Open(filePath);
+            // 除rar格式外加密文件名
+            IArchive archive;
+            try
+            {
+                archive = ArchiveFactory.Open(filePath);
+            }
+            catch (Exception)
+            {
+                info.EncryptionType = EncryptionType.Header;
+                while (true)
+                    try
+                    {
+                        info.Password = NextPassword;
+                        archive = ArchiveFactory.Open(filePath, new() { Password = info.Password });
+                        break;
+                    }
+                    catch (PasswordUsedUpException)
+                    {
+                        throw;
+                    }
+                    catch (Exception)
+                    {
+                        continue;
+                    }
+            }
+
+            info.ArchiveType = archive.Type;
             if (archive.Type is not ArchiveType.Rar)
             {
+                // 除rar格式外加密文件
                 var entries = archive.Entries.ToList();
                 for (var index = 0; index < entries.Count; index++)
                     if (!entries[index].IsDirectory)
@@ -41,6 +81,7 @@ public static class Program
                         var fileInfo = new FileInfo(Path.Combine(filePath.DirectoryName!, entries[index].Key));
                         if (fileInfo.Directory is { Exists: true } directory)
                             directory.Create();
+                        // 除rar格式外加密文件
                         while (true)
                             try
                             {
@@ -49,8 +90,10 @@ public static class Program
                             }
                             catch (Exception)
                             {
+                                info.EncryptionType = EncryptionType.Content;
+                                info.Password = NextPassword;
                                 archive.Dispose();
-                                archive = ArchiveFactory.Open(filePath, new() { Password = NextPassword });
+                                archive = ArchiveFactory.Open(filePath, new() { Password = info.Password });
                                 entries = archive.Entries.ToList();
                             }
                     }
@@ -58,6 +101,7 @@ public static class Program
             else
             {
                 var pwd = "";
+                // rar格式加密文件名
                 while (true)
                 {
                     using var unRarTest = DictionaryDecompressor.UnRar.Open(filePath, OpenMode.List);
@@ -67,10 +111,11 @@ public static class Program
                         break;
                     switch (r)
                     {
-                        // 加密文件名
                         case RarError.MissingPassword:
                         case RarError.BadPassword:
-                            pwd = NextPassword;
+                            info.EncryptionType = EncryptionType.Header;
+                            info.Password = NextPassword;
+                            pwd = info.Password;
                             break;
                         case RarError.BadData:
                             throw new IOException("Archive data is corrupted.");
@@ -86,9 +131,13 @@ public static class Program
                     switch (result)
                     {
                         case RarError.Success:
-                            // 加密文件
+                            // rar格式加密文件
                             if (unRar.ExtractToDirectory(filePath.DirectoryName!) is RarError.BadPassword or RarError.MissingPassword)
-                                unRar.Password = NextPassword;
+                            {
+                                info.EncryptionType = EncryptionType.Content;
+                                info.Password = NextPassword;
+                                unRar.Password = info.Password;
+                            }
                             break;
                         case RarError.EndOfArchive:
                             end = true;
@@ -99,7 +148,7 @@ public static class Program
                 }
             }
             archive.Dispose();
-            Console.WriteLine("完成");
+            Console.WriteLine("完成\n" + info);
         }
     }
 }
