@@ -31,7 +31,6 @@ public static class Program
         }
     }
 
-
     public static void Main(string[] args)
     {
         while (true)
@@ -104,7 +103,7 @@ public static class Program
                 // rar格式加密文件名
                 while (true)
                 {
-                    using var unRarTest = DictionaryDecompressor.UnRar.Open(filePath, OpenMode.List);
+                    using var unRarTest = UnRar.Open(filePath, OpenMode.List);
                     unRarTest.Password = pwd;
                     var r = unRarTest.ReadHeader();
                     if (r is RarError.Success)
@@ -121,7 +120,8 @@ public static class Program
                             throw new IOException("Archive data is corrupted.");
                     }
                 }
-                using var unRar = DictionaryDecompressor.UnRar.Open(filePath, OpenMode.Extract);
+
+                using var unRar = UnRar.Open(filePath, OpenMode.Extract);
                 unRar.Password = pwd;
 
                 var end = false;
@@ -138,6 +138,7 @@ public static class Program
                                 info.Password = NextPassword;
                                 unRar.Password = info.Password;
                             }
+
                             break;
                         case RarError.EndOfArchive:
                             end = true;
@@ -147,6 +148,7 @@ public static class Program
                     }
                 }
             }
+
             archive.Dispose();
             Console.WriteLine("完成\n" + info);
         }

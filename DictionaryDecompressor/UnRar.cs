@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using UnRar.Models;
 using UnRar.Models.Delegates;
 using UnRar.Models.Enums;
@@ -66,7 +66,7 @@ public class UnRar : IDisposable
     /// Path and name of RAR archive to open
     /// </summary>
     private readonly string _archivePathName;
-    private IntPtr _archiveHandle = new(0);
+    private nint _archiveHandle;
     private readonly bool _retrieveComment = true;
     private string _password;
     private ArchiveFlags _archiveFlags = 0;
@@ -87,10 +87,10 @@ public class UnRar : IDisposable
     public void Dispose()
     {
         GC.SuppressFinalize(this);
-        if (_archiveHandle != IntPtr.Zero)
+        if (_archiveHandle != 0)
         {
             _ = RarCloseArchive(_archiveHandle);
-            _archiveHandle = IntPtr.Zero;
+            _archiveHandle = 0;
         }
     }
 
@@ -117,7 +117,7 @@ public class UnRar : IDisposable
         set
         {
             _password = value;
-            if (_archiveHandle != IntPtr.Zero)
+            if (_archiveHandle != 0)
                 RarSetPassword(_archiveHandle, value);
         }
     }
